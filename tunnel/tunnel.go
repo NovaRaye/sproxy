@@ -1,13 +1,10 @@
 package tunnel
 
 import (
-	"errors"
 	"fmt"
 	"log"
 	"net"
 	"os"
-	"os/exec"
-	"syscall"
 
 	"github.com/vishvananda/netlink"
 )
@@ -18,44 +15,62 @@ const (
 )
 
 type Tunnel struct {
-	cfg *Config
+	cfg     *Config
+	created bool
 }
 
-func deleteTunnel() {
-	if out, err := exec.Command("ip", "tunnel", "del", ifaceName).CombinedOutput(); err != nil {
-		log.Printf("ip tunnel del: %v %s", err, out)
+func findExistingSitTunnel(localIP, remoteIP net.IP) netlink.Link {
+	links, err := netlink.LinkList()
+	if err != nil {
+		return nil
 	}
+	for _, link := range links {
+		sit, ok := link.(*netlink.Sittun)
+		if !ok {
+			continue
+		}
+		if sit.Local.Equal(localIP) && sit.Remote.Equal(remoteIP) {
+			return link
+		}
+	}
+	return nil
 }
 
 func Setup(cfg *Config) (*Tunnel, error) {
-	deleteTunnel()
-
 	localIP := net.ParseIP(cfg.Local).To4()
 	remoteIP := net.ParseIP(cfg.Remote).To4()
 	if localIP == nil || remoteIP == nil {
 		return nil, fmt.Errorf("invalid local/remote IPv4")
 	}
 
-	sit := &netlink.Sittun{
-		LinkAttrs: netlink.LinkAttrs{Name: ifaceName},
-		Local:     localIP,
-		Remote:    remoteIP,
-		Ttl:       64,
-	}
-	if err := netlink.LinkAdd(sit); err != nil {
-		if !errors.Is(err, syscall.EEXIST) {
-			return nil, fmt.Errorf("create tunnel: %w", err)
+	var link netlink.Link
+	created := false
+
+	if existing := findExistingSitTunnel(localIP, remoteIP); existing != nil {
+		log.Printf("reusing existing tunnel interface %s", existing.Attrs().Name)
+		link = existing
+	} else {
+		if old, err := netlink.LinkByName(ifaceName); err == nil {
+			_ = netlink.LinkSetDown(old)
+			_ = netlink.LinkDel(old)
 		}
-		deleteTunnel()
+		sit := &netlink.Sittun{
+			LinkAttrs: netlink.LinkAttrs{Name: ifaceName},
+			Local:     localIP,
+			Remote:    remoteIP,
+			Ttl:       64,
+		}
 		if err := netlink.LinkAdd(sit); err != nil {
 			return nil, fmt.Errorf("create tunnel: %w", err)
 		}
+		var err error
+		link, err = netlink.LinkByName(ifaceName)
+		if err != nil {
+			return nil, fmt.Errorf("find tunnel iface: %w", err)
+		}
+		created = true
 	}
 
-	link, err := netlink.LinkByName(ifaceName)
-	if err != nil {
-		return nil, fmt.Errorf("find tunnel iface: %w", err)
-	}
 	if err := netlink.LinkSetUp(link); err != nil {
 		return nil, fmt.Errorf("set tunnel up: %w", err)
 	}
@@ -102,8 +117,8 @@ func Setup(cfg *Config) (*Tunnel, error) {
 		log.Printf("warn: set ip_nonlocal_bind: %v", err)
 	}
 
-	log.Printf("tunnel %s up, gateway %s, cidr %s", ifaceName, cfg.GatewayIPv6, cfg.CIDR)
-	return &Tunnel{cfg: cfg}, nil
+	log.Printf("tunnel %s up, gateway %s, cidr %s", link.Attrs().Name, cfg.GatewayIPv6, cfg.CIDR)
+	return &Tunnel{cfg: cfg, created: created}, nil
 }
 
 func (t *Tunnel) Teardown() {
@@ -115,6 +130,10 @@ func (t *Tunnel) Teardown() {
 		log.Printf("warn: remove ip rule: %v", err)
 	}
 
-	deleteTunnel()
-	log.Printf("tunnel %s removed", ifaceName)
+	if t.created {
+		if link, err := netlink.LinkByName(ifaceName); err == nil {
+			_ = netlink.LinkDel(link)
+		}
+		log.Printf("tunnel %s removed", ifaceName)
+	}
 }
