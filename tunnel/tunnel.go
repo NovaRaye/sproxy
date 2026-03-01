@@ -9,6 +9,7 @@ import (
 	"syscall"
 
 	"github.com/vishvananda/netlink"
+	"golang.org/x/sys/unix"
 )
 
 const (
@@ -119,6 +120,20 @@ func Setup(cfg *Config) (*Tunnel, error) {
 		log.Printf("warn: set ip_nonlocal_bind: %v", err)
 	}
 
+	lo, err := netlink.LinkByName("lo")
+	if err != nil {
+		return nil, fmt.Errorf("find lo: %w", err)
+	}
+	localRoute := &netlink.Route{
+		LinkIndex: lo.Attrs().Index,
+		Dst:       cfg.CIDRNet(),
+		Type:      unix.RTN_LOCAL,
+		Table:     unix.RT_TABLE_LOCAL,
+	}
+	if err := netlink.RouteAdd(localRoute); err != nil && !errors.Is(err, syscall.EEXIST) {
+		return nil, fmt.Errorf("add local cidr route: %w", err)
+	}
+
 	log.Printf("tunnel %s up, gateway %s, cidr %s", link.Attrs().Name, cfg.GatewayIPv6, cfg.CIDR)
 	return &Tunnel{cfg: cfg, created: created}, nil
 }
@@ -130,6 +145,18 @@ func (t *Tunnel) Teardown() {
 	rule.Family = netlink.FAMILY_V6
 	if err := netlink.RuleDel(rule); err != nil {
 		log.Printf("warn: remove ip rule: %v", err)
+	}
+
+	if lo, err := netlink.LinkByName("lo"); err == nil {
+		localRoute := &netlink.Route{
+			LinkIndex: lo.Attrs().Index,
+			Dst:       t.cfg.CIDRNet(),
+			Type:      unix.RTN_LOCAL,
+			Table:     unix.RT_TABLE_LOCAL,
+		}
+		if err := netlink.RouteDel(localRoute); err != nil {
+			log.Printf("warn: remove local cidr route: %v", err)
+		}
 	}
 
 	if t.created {
