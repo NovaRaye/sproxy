@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"os/exec"
 	"syscall"
 
 	"github.com/vishvananda/netlink"
@@ -21,9 +22,7 @@ type Tunnel struct {
 }
 
 func deleteTunnel() {
-	old := &netlink.Sittun{LinkAttrs: netlink.LinkAttrs{Name: ifaceName}}
-	_ = netlink.LinkSetDown(old)
-	_ = netlink.LinkDel(old)
+	exec.Command("ip", "link", "del", ifaceName).Run()
 }
 
 func Setup(cfg *Config) (*Tunnel, error) {
