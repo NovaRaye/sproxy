@@ -1,10 +1,12 @@
 package tunnel
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net"
 	"os"
+	"syscall"
 
 	"github.com/vishvananda/netlink"
 )
@@ -21,9 +23,7 @@ type Tunnel struct {
 func Setup(cfg *Config) (*Tunnel, error) {
 	if old, err := netlink.LinkByName(ifaceName); err == nil {
 		_ = netlink.LinkSetDown(old)
-		if err := netlink.LinkDel(old); err != nil {
-			return nil, fmt.Errorf("delete existing tunnel: %w", err)
-		}
+		_ = netlink.LinkDel(old)
 	}
 
 	localIP := net.ParseIP(cfg.Local).To4()
@@ -39,7 +39,17 @@ func Setup(cfg *Config) (*Tunnel, error) {
 		Ttl:       64,
 	}
 	if err := netlink.LinkAdd(sit); err != nil {
-		return nil, fmt.Errorf("create tunnel: %w", err)
+		if !errors.Is(err, syscall.EEXIST) {
+			return nil, fmt.Errorf("create tunnel: %w", err)
+		}
+		// kernel hasn't released the interface yet, force delete and retry
+		if old, lerr := netlink.LinkByName(ifaceName); lerr == nil {
+			_ = netlink.LinkSetDown(old)
+			_ = netlink.LinkDel(old)
+		}
+		if err := netlink.LinkAdd(sit); err != nil {
+			return nil, fmt.Errorf("create tunnel: %w", err)
+		}
 	}
 
 	link, err := netlink.LinkByName(ifaceName)
