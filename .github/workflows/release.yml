@@ -9,16 +9,9 @@ permissions:
   contents: write
 
 jobs:
-  build:
+  release:
     name: Build and Release
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        include:
-          - goos: linux
-            goarch: amd64
-          - goos: linux
-            goarch: arm64
 
     steps:
       - uses: actions/checkout@v4
@@ -27,16 +20,23 @@ jobs:
         with:
           go-version: '1.23'
 
-      - name: Build
+      - name: Build linux/amd64
         env:
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
+          GOOS: linux
+          GOARCH: amd64
           CGO_ENABLED: 0
-        run: |
-          go build -ldflags="-s -w -X main.version=${{ github.ref_name }}" \
-            -o sproxy-${{ matrix.goos }}-${{ matrix.goarch }} .
+        run: go build -ldflags="-s -w -X main.version=${{ github.ref_name }}" -o sproxy-linux-amd64 .
+
+      - name: Build linux/arm64
+        env:
+          GOOS: linux
+          GOARCH: arm64
+          CGO_ENABLED: 0
+        run: go build -ldflags="-s -w -X main.version=${{ github.ref_name }}" -o sproxy-linux-arm64 .
 
       - name: Upload to Release
         uses: softprops/action-gh-release@v2
         with:
-          files: sproxy-${{ matrix.goos }}-${{ matrix.goarch }}
+          files: |
+            sproxy-linux-amd64
+            sproxy-linux-arm64
