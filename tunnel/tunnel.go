@@ -22,7 +22,9 @@ type Tunnel struct {
 }
 
 func deleteTunnel() {
-	exec.Command("ip", "link", "del", ifaceName).Run()
+	if out, err := exec.Command("ip", "tunnel", "del", ifaceName).CombinedOutput(); err != nil {
+		log.Printf("ip tunnel del: %v %s", err, out)
+	}
 }
 
 func Setup(cfg *Config) (*Tunnel, error) {
