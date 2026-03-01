@@ -28,3 +28,4 @@ echo "Downloading ${BIN} (linux/${ARCH})..."
 curl -fsSL "$URL" -o "${INSTALL_DIR}/${BIN}"
 chmod +x "${INSTALL_DIR}/${BIN}"
 echo "Installed to ${INSTALL_DIR}/${BIN}"
+"${INSTALL_DIR}/${BIN}" --version

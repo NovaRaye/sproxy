@@ -20,11 +20,14 @@ type Tunnel struct {
 	cfg *Config
 }
 
+func deleteTunnel() {
+	old := &netlink.Sittun{LinkAttrs: netlink.LinkAttrs{Name: ifaceName}}
+	_ = netlink.LinkSetDown(old)
+	_ = netlink.LinkDel(old)
+}
+
 func Setup(cfg *Config) (*Tunnel, error) {
-	if old, err := netlink.LinkByName(ifaceName); err == nil {
-		_ = netlink.LinkSetDown(old)
-		_ = netlink.LinkDel(old)
-	}
+	deleteTunnel()
 
 	localIP := net.ParseIP(cfg.Local).To4()
 	remoteIP := net.ParseIP(cfg.Remote).To4()
@@ -42,11 +45,7 @@ func Setup(cfg *Config) (*Tunnel, error) {
 		if !errors.Is(err, syscall.EEXIST) {
 			return nil, fmt.Errorf("create tunnel: %w", err)
 		}
-		// kernel hasn't released the interface yet, force delete and retry
-		if old, lerr := netlink.LinkByName(ifaceName); lerr == nil {
-			_ = netlink.LinkSetDown(old)
-			_ = netlink.LinkDel(old)
-		}
+		deleteTunnel()
 		if err := netlink.LinkAdd(sit); err != nil {
 			return nil, fmt.Errorf("create tunnel: %w", err)
 		}
@@ -115,14 +114,6 @@ func (t *Tunnel) Teardown() {
 		log.Printf("warn: remove ip rule: %v", err)
 	}
 
-	link, err := netlink.LinkByName(ifaceName)
-	if err != nil {
-		log.Printf("warn: find tunnel iface for cleanup: %v", err)
-		return
-	}
-	if err := netlink.LinkDel(link); err != nil {
-		log.Printf("warn: remove tunnel iface: %v", err)
-	}
-
+	deleteTunnel()
 	log.Printf("tunnel %s removed", ifaceName)
 }
