@@ -1,10 +1,12 @@
 package tunnel
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net"
 	"os"
+	"syscall"
 
 	"github.com/vishvananda/netlink"
 )
@@ -79,7 +81,7 @@ func Setup(cfg *Config) (*Tunnel, error) {
 		IP:   cfg.ClientIP(),
 		Mask: cfg.ClientNet().Mask,
 	}}
-	if err := netlink.AddrAdd(link, addr); err != nil {
+	if err := netlink.AddrAdd(link, addr); err != nil && !errors.Is(err, syscall.EEXIST) {
 		return nil, fmt.Errorf("assign ipv6 addr: %w", err)
 	}
 
@@ -87,7 +89,7 @@ func Setup(cfg *Config) (*Tunnel, error) {
 		LinkIndex: link.Attrs().Index,
 		Dst:       cfg.CIDRNet(),
 	}
-	if err := netlink.RouteAdd(cidrRoute); err != nil {
+	if err := netlink.RouteAdd(cidrRoute); err != nil && !errors.Is(err, syscall.EEXIST) {
 		return nil, fmt.Errorf("add cidr route: %w", err)
 	}
 
@@ -109,7 +111,7 @@ func Setup(cfg *Config) (*Tunnel, error) {
 		},
 		Table: routeTable,
 	}
-	if err := netlink.RouteAdd(defaultRoute); err != nil {
+	if err := netlink.RouteAdd(defaultRoute); err != nil && !errors.Is(err, syscall.EEXIST) {
 		return nil, fmt.Errorf("add default route in table %d: %w", routeTable, err)
 	}
 
