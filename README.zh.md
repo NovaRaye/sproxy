@@ -7,13 +7,12 @@ IPv6 随机出口 HTTP 代理。每次连接从指定的 CIDR 段中随机选取
 支持两种模式：
 
 - **仅代理模式**：已有隧道/接口和路由，直接跑代理
-- **隧道模式**：自动创建 6in4 隧道（如 [Hurricane Electric](https://tunnelbroker.net)）、配置路由并启动代理，退出时自动清理
+- **隧道模式**：自动创建 6in4 隧道（如 [Hurricane Electric](https://tunnelbroker.net)）、配置路由并启动代理
 
 ## 安装
 
 ```bash
-curl -L https://github.com/novaraye/sproxy/releases/latest/download/sproxy-linux-amd64 -o /usr/local/bin/sproxy
-chmod +x /usr/local/bin/sproxy
+curl -fsSL https://raw.githubusercontent.com/novaraye/sproxy/master/install.sh | sudo sh
 ```
 
 ## 使用
@@ -52,6 +51,14 @@ docker run -d \
   --port        1080                 \
   --username    user                 \
   --password    pass
+```
+
+## 验证
+
+循环请求出口 IP，每次应返回不同的 IPv6 地址：
+
+```bash
+while true; do curl -x http://127.0.0.1:1080 -s https://api.ip.sb/ip -A Mozilla; done
 ```
 
 ## 参数说明

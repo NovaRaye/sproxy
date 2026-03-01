@@ -20,7 +20,10 @@ type Tunnel struct {
 
 func Setup(cfg *Config) (*Tunnel, error) {
 	if old, err := netlink.LinkByName(ifaceName); err == nil {
-		_ = netlink.LinkDel(old)
+		_ = netlink.LinkSetDown(old)
+		if err := netlink.LinkDel(old); err != nil {
+			return nil, fmt.Errorf("delete existing tunnel: %w", err)
+		}
 	}
 
 	localIP := net.ParseIP(cfg.Local).To4()

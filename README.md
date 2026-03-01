@@ -12,8 +12,7 @@ Supports two modes:
 ## Install
 
 ```bash
-curl -L https://github.com/novaraye/sproxy/releases/latest/download/sproxy-linux-amd64 -o /usr/local/bin/sproxy
-chmod +x /usr/local/bin/sproxy
+curl -fsSL https://raw.githubusercontent.com/novaraye/sproxy/master/install.sh | sudo sh
 ```
 
 ## Usage
@@ -52,6 +51,14 @@ docker run -d \
   --port        1080             \
   --username    user             \
   --password    pass
+```
+
+## Verify
+
+Loop requests to check the exit IP — each response should be a different IPv6 address:
+
+```bash
+while true; do curl -x http://127.0.0.1:1080 -s https://api.ip.sb/ip -A Mozilla; done
 ```
 
 ## Options

@@ -10,8 +10,8 @@ permissions:
   packages: write
 
 jobs:
-  release:
-    name: Build and Release
+  binaries:
+    name: Build Binaries
     runs-on: ubuntu-latest
 
     steps:
@@ -41,6 +41,13 @@ jobs:
           files: |
             sproxy-linux-amd64
             sproxy-linux-arm64
+
+  docker:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
