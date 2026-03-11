@@ -48,9 +48,7 @@ docker run -d \
   --remote      216.218.226.238  \
   --local       203.0.113.10     \
   --client-ipv6 2001:db8::/64    \
-  --port        1080             \
-  --username    user             \
-  --password    pass
+  --port        1080             
 ```
 
 ## Verify
